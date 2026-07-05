@@ -88,6 +88,27 @@ class FlowerBloomApp {
         this.loadingEl = document.getElementById('loading');
         this.instructionsEl = document.getElementById('instructions');
 
+        // Flower selection
+        this.flowerType = 'flora1';
+        this.flowerColor = { hue: 345, sat: 85, light: 55 };
+
+        const typeSelect = document.getElementById('flowerTypeSelect');
+        if (typeSelect) {
+            typeSelect.value = this.flowerType;
+            typeSelect.addEventListener('change', (e) => {
+                this.flowerType = e.target.value;
+            });
+        }
+
+        const colorSelect = document.getElementById('flowerColorSelect');
+        if (colorSelect) {
+            colorSelect.value = 'pink';
+            colorSelect.addEventListener('change', (e) => {
+                const value = e.target.value;
+                this.setFlowerColor(value);
+            });
+        }
+
         // Noise
         this.noise = new OrganicNoise();
 
@@ -179,6 +200,34 @@ class FlowerBloomApp {
         cam.start().then(() => {
             setTimeout(() => this.loadingEl?.classList.add('hidden'), 600);
         });
+    }
+
+    setFlowerColor(color) {
+        switch (color) {
+            case 'red':
+                this.flowerColor = { hue: 10, sat: 90, light: 50 };
+                break;
+            case 'orange':
+                this.flowerColor = { hue: 25, sat: 92, light: 55 };
+                break;
+            case 'yellow':
+                this.flowerColor = { hue: 45, sat: 95, light: 60 };
+                break;
+            case 'green':
+                this.flowerColor = { hue: 140, sat: 80, light: 54 };
+                break;
+            case 'blue':
+                this.flowerColor = { hue: 210, sat: 82, light: 60 };
+                break;
+            case 'purple':
+                this.flowerColor = { hue: 260, sat: 75, light: 62 };
+                break;
+            case 'white':
+                this.flowerColor = { hue: 0, sat: 12, light: 96 };
+                break;
+            default:
+                this.flowerColor = { hue: 345, sat: 85, light: 55 };
+        }
     }
 
     // ---------------------------------------------------------
@@ -438,6 +487,11 @@ class FlowerBloomApp {
 
     // ----- Flower Head (Tulip facing upward) -----
     drawFlowerHead(cx, cy, bloom, windAngle, scale) {
+        if (this.flowerType === 'flora2') {
+            this.drawDaisyFlowerHead(cx, cy, bloom, windAngle, scale);
+            return;
+        }
+
         // Boost scale as it blooms to make it feel more dynamic and organic
         const bloomScaleFactor = 1.0 + bloom * 0.18;
         const adjustedScale = scale * bloomScaleFactor;
@@ -459,10 +513,8 @@ class FlowerBloomApp {
             ctx.fill();
         }
 
-        // Base color definitions (tulip uses beautiful pink/coral/yellow tones)
-        const hue = 345; // Pink/crimson base
-        const sat = 85;
-        const light = 55;
+        // Base color definitions (tulip uses selectable color presets)
+        const { hue, sat, light } = this.flowerColor;
 
         // --- Tulip Petal Layers ---
         // Back/outer layer (drawn first)
@@ -537,6 +589,71 @@ class FlowerBloomApp {
 
             this.drawTulipPetal(ctx, finalAngle, len, wid, hue + p.hueOffset, sat, light + p.lightOffset, bloom);
         }
+
+        ctx.restore();
+    }
+
+    drawDaisyFlowerHead(cx, cy, bloom, windAngle, scale) {
+        const ctx = this.ctx;
+        const { hue, sat, light } = this.flowerColor;
+        const bloomScaleFactor = 1.0 + bloom * 0.18;
+        const adjustedScale = scale * bloomScaleFactor;
+
+        ctx.save();
+        ctx.translate(cx, cy);
+
+        const glowR = (55 + bloom * 110) * adjustedScale;
+        if (bloom > 0.02) {
+            const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, glowR);
+            glow.addColorStop(0, `rgba(255, 255, 255, ${0.2 * bloom})`);
+            glow.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            ctx.fillStyle = glow;
+            ctx.beginPath();
+            ctx.arc(0, 0, glowR, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        const petalCount = 10;
+        const petalLength = 68 * adjustedScale;
+        const petalWidth = 24 * adjustedScale * (0.8 + bloom * 0.4);
+
+        for (let i = 0; i < petalCount; i++) {
+            const angle = (i / petalCount) * Math.PI * 2 + windAngle * 0.03;
+            const flutter = this.noise.get(this.time * 1.2 + i, 3) * 0.08;
+            const finalAngle = angle + flutter;
+            this.drawDaisyPetal(ctx, finalAngle, petalLength, petalWidth, hue, sat, light, bloom);
+        }
+
+        // Flower center
+        ctx.save();
+        ctx.fillStyle = `hsla(${hue}, ${Math.max(20, sat - 10)}%, ${Math.min(95, light + 5)}%, 1)`;
+        ctx.shadowBlur = 16;
+        ctx.shadowColor = `hsla(${hue}, ${Math.max(30, sat)}%, ${Math.min(100, light + 15)}%, 0.5)`;
+        ctx.beginPath();
+        ctx.arc(0, 0, 18 * adjustedScale * bloom, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        ctx.restore();
+    }
+
+    drawDaisyPetal(ctx, angle, length, width, hue, sat, light, bloom) {
+        ctx.save();
+        ctx.rotate(angle);
+
+        const grad = ctx.createLinearGradient(0, 0, 0, -length);
+        grad.addColorStop(0, `hsla(${hue}, ${sat}%, ${light}%, 0.95)`);
+        grad.addColorStop(1, `hsla(${hue}, ${Math.max(10, sat - 20)}%, ${Math.min(96, light + 18)}%, 0.95)`);
+
+        ctx.fillStyle = grad;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = `hsla(${hue}, ${sat}%, ${light}%, ${0.15 + bloom * 0.2})`;
+
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.quadraticCurveTo(-width * 0.25, -length * 0.35, 0, -length);
+        ctx.quadraticCurveTo(width * 0.25, -length * 0.35, 0, 0);
+        ctx.fill();
 
         ctx.restore();
     }
