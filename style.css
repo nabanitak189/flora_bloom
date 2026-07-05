@@ -170,6 +170,7 @@ html, body {
     color: rgba(255,220,240,0.95);
     font-size: 13px;
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     align-items: center;
     backdrop-filter: blur(6px);
@@ -181,7 +182,9 @@ html, body {
     margin-right: 6px;
 }
 
-.controls select {
+.controls select,
+.controls input[type="range"],
+.controls button {
     background: rgba(10,7,12,0.6);
     color: #fff;
     border: 1px solid rgba(255,255,255,0.06);
@@ -189,6 +192,22 @@ html, body {
     border-radius: 6px;
     font-size: 13px;
     outline: none;
+}
+
+.controls input[type="range"] {
+    width: 100px;
+    padding: 0;
+    accent-color: #ff8ec7;
+}
+
+.controls button {
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.controls button:disabled {
+    opacity: 0.55;
+    cursor: default;
 }
 
 /* ---- Vignette ---- */

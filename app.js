@@ -109,6 +109,35 @@ class FlowerBloomApp {
             });
         }
 
+        this.masterVolume = 0.65;
+        this.audioEnabled = false;
+        this.windActive = false;
+        this.windThreshold = 0.18;
+        this.soundCooldown = 320;
+        this.lastSoundTime = { bloom: 0, grow: 0 };
+        this.sounds = this.createSoundBank();
+
+        const volumeControl = document.getElementById('volumeControl');
+        if (volumeControl) {
+            volumeControl.value = String(this.masterVolume);
+            volumeControl.addEventListener('input', (e) => {
+                this.masterVolume = parseFloat(e.target.value) || 0.65;
+            });
+        }
+
+        const enableSoundButton = document.getElementById('enableSound');
+        if (enableSoundButton) {
+            enableSoundButton.addEventListener('click', () => {
+                this.audioEnabled = true;
+                enableSoundButton.disabled = true;
+                enableSoundButton.textContent = 'Sound enabled';
+            });
+        }
+
+        document.addEventListener('pointerdown', () => {
+            this.audioEnabled = true;
+        }, { once: true });
+
         // Noise
         this.noise = new OrganicNoise();
 
@@ -230,6 +259,91 @@ class FlowerBloomApp {
         }
     }
 
+    createSoundBank() {
+        return {
+            bloom: this.createAudio(['bloom.mp3', 'soundreality-spring-forest-nature-332842 (1).mp3']),
+            grow: this.createAudio(['grow.mp3', 'dragon-studio-whoosh-cinematic-376875.mp3']),
+            wind: this.createAudio(['wind.mp3'], true),
+        };
+    }
+
+    createAudio(sources, loop = false) {
+        const srcList = Array.isArray(sources) ? sources : [sources];
+        const audio = new Audio();
+        audio.preload = 'auto';
+        audio.loop = loop;
+        audio.volume = 0;
+        audio.crossOrigin = 'anonymous';
+        audio._srcList = srcList;
+        audio._srcIndex = 0;
+        audio._loadNextSource = () => {
+            if (audio._srcIndex >= audio._srcList.length) return;
+            audio.src = audio._srcList[audio._srcIndex];
+            audio.load();
+        };
+
+        audio.addEventListener('error', () => {
+            audio._srcIndex += 1;
+            if (audio._srcIndex < audio._srcList.length) {
+                audio._loadNextSource();
+            } else {
+                console.warn('Audio source failed:', audio._srcList);
+                audio.dataset.missing = 'true';
+            }
+        });
+
+        audio._loadNextSource();
+        return audio;
+    }
+
+    playSound(name, { volume = 1, loop = false } = {}) {
+        if (!this.audioEnabled) return;
+        const audio = this.sounds[name];
+        if (!audio || audio.dataset.missing === 'true') return;
+
+        audio.loop = loop;
+        audio.volume = Math.max(0, Math.min(1, volume * this.masterVolume));
+        audio.pause();
+        audio.currentTime = 0;
+        audio.play().catch((err) => {
+            console.warn('Audio playback failed:', name, err);
+        });
+    }
+
+    triggerGestureSound(name, intensity) {
+        const now = performance.now();
+        if (now - this.lastSoundTime[name] < this.soundCooldown) return;
+        this.lastSoundTime[name] = now;
+        this.playSound(name, {
+            volume: 0.3 + Math.min(1, intensity) * 0.55,
+            loop: false,
+        });
+    }
+
+    startWind(intensity) {
+        if (!this.audioEnabled) return;
+        const audio = this.sounds.wind;
+        if (!audio) return;
+
+        const volume = Math.max(0, Math.min(1, 0.12 + intensity * 0.35));
+        audio.loop = true;
+        audio.volume = volume * this.masterVolume;
+        if (audio.paused) {
+            audio.currentTime = 0;
+            audio.play().catch(() => {});
+        }
+        this.windActive = true;
+    }
+
+    stopWind() {
+        const audio = this.sounds.wind;
+        if (audio && !audio.paused) {
+            audio.pause();
+            audio.currentTime = 0;
+        }
+        this.windActive = false;
+    }
+
     // ---------------------------------------------------------
     // Hand results callback
     // ---------------------------------------------------------
@@ -271,11 +385,28 @@ class FlowerBloomApp {
 
             // Right hand controls Growth
             this.targetGrowth = hasRight ? rightPinch : 0;
+
+            this.updateGestureAudio(leftPinch, rightPinch, Math.abs(this.targetWindForce));
         } else {
             // No hands → slowly close and shrink back to 0
             this.targetBloom *= 0.94;
             this.targetGrowth *= 0.94;
             this.targetWindForce *= 0.9;
+            if (this.windActive) this.stopWind();
+        }
+    }
+
+    updateGestureAudio(leftPinch, rightPinch, windIntensity) {
+        if (leftPinch > 0.2) {
+            this.triggerGestureSound('bloom', leftPinch);
+        }
+        if (rightPinch > 0.2) {
+            this.triggerGestureSound('grow', rightPinch);
+        }
+        if (windIntensity > this.windThreshold) {
+            this.startWind(windIntensity);
+        } else if (this.windActive) {
+            this.stopWind();
         }
     }
 
